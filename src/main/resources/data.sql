@@ -3,7 +3,7 @@
 -- This script only inserts initial data
 
 -- Insert sample users with BCrypt hashed passwords
--- Password for all users: password
+-- Password for all users: "password"
 INSERT IGNORE INTO users (name, email, phone_number, telegram_chat_id, role, password, created_at) VALUES
 ('Admin User', 'admin@receipthub.com', '+6599999999', null, 'ADMIN', '$2a$10$3g4uHW9UY1ybAzEXqAL62eQ8AfbJltCwvF2SbW2gDRDztPMh3ZzKu', NOW()),
 ('Irfan', 'irfan@company.com', '+6591234567', null, 'EMPLOYEE', '$2a$10$3g4uHW9UY1ybAzEXqAL62eQ8AfbJltCwvF2SbW2gDRDztPMh3ZzKu', NOW()),

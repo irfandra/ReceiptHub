@@ -100,16 +100,15 @@ public class ReimbursementService {
     public void editReimbursement(Long requestId, String merchantName, Double amount, String transactionDate, String description) {
         ReimbursementRequest reimbursement = reimbursementRequestRepository.findById(requestId)
             .orElseThrow(() -> new RuntimeException("Reimbursement Request not found with id: " + requestId));
-        
-        // Update amount
+
         reimbursement.setRequestedAmount(amount);
         
-        // Update description
+
         if (description != null && !description.trim().isEmpty()) {
             reimbursement.setDescription(description);
         }
         
-        // Update merchant name and transaction date in the associated receipt
+
         Receipt receipt = reimbursement.getReceipt();
         
         if (merchantName != null && !merchantName.trim().isEmpty()) {
@@ -120,9 +119,7 @@ public class ReimbursementService {
             LocalDate date = LocalDate.parse(transactionDate, DateTimeFormatter.ISO_LOCAL_DATE);
             receipt.setTransactionDate(LocalDateTime.of(date, java.time.LocalTime.MIDNIGHT));
         }
-        
         reimbursement = reimbursementRequestRepository.save(reimbursement);
-
         convertToResponse(reimbursement);
     }
     

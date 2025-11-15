@@ -29,16 +29,9 @@ public class SecurityConfig {
         http
             .userDetailsService(authService) // Use database authentication
             .authorizeHttpRequests(auth -> auth
-                // Public endpoints - no authentication required
                 .requestMatchers("/login", "/css/**", "/js/**", "/images/**").permitAll()
-                
-                // Admin-only
                 .requestMatchers("/dashboard", "/dashboard/**").hasRole("ADMIN")
-                
-                // Employee
                 .requestMatchers("/my-requests").hasAnyRole("EMPLOYEE")
-                
-                // All other requests require authentication
                 .anyRequest().authenticated()
             )
             .formLogin(form -> form
@@ -46,7 +39,7 @@ public class SecurityConfig {
                 .loginProcessingUrl("/login")
                 .usernameParameter("email")
                 .passwordParameter("password")
-                .defaultSuccessUrl("/", true)  // Redirect to "/" which handles role-based routing
+                .defaultSuccessUrl("/", true)
                 .failureUrl("/login?error=true")
                 .permitAll()
             )

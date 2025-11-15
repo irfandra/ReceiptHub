@@ -22,7 +22,7 @@ public class NotificationService {
         List<User> admins = userService.getAdminUsers();
         
         String message = """
-            🔔 New Reimbursement Request
+            New Reimbursement Request
             
             Employee: %s
             Merchant: %s
@@ -40,8 +40,8 @@ public class NotificationService {
         for (User admin : admins) {
             try {
                 telegramBotService.sendMessage(admin.getTelegramChatId(), message);
-            } catch (Exception e) {
-                // Silently fail if notification fails
+            } catch (Exception ignored) {
+
             }
         }
     }
@@ -71,8 +71,8 @@ public class NotificationService {
         
         try {
             telegramBotService.sendMessage(employee.getTelegramChatId(), message);
-        } catch (Exception e) {
-            // Silently fail if notification fails
+        } catch (Exception ignored) {
+
         }
     }
 }

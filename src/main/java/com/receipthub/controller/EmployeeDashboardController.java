@@ -29,14 +29,11 @@ public class EmployeeDashboardController {
             @RequestParam(required = false, defaultValue = "10") int size,
             Principal principal,
             Model model) {
-        
-        // Get current user from Spring Security
+
         User currentEmployee = userService.getUserByEmail(principal.getName()).orElseThrow();
-        
         model.addAttribute("currentUser", currentEmployee);
         model.addAttribute("pageTitle", "My Requests");
-        
-        // Get paginated reimbursements for this employee only
+
         Page<ReimbursementResponse> reimbursementPage;
         if ("ALL".equals(status)) {
             reimbursementPage = reimbursementService.getReimbursementsByUserId(currentEmployee.getId(), page, size);
@@ -45,7 +42,7 @@ public class EmployeeDashboardController {
                 currentEmployee.getId(), status, page, size);
         }
         
-        // Calculate statistics for this employee only
+
         long pendingCount = reimbursementService.getReimbursementsByUserIdAndStatus(
             currentEmployee.getId(), "PENDING", 0, Integer.MAX_VALUE).getTotalElements();
         long approvedCount = reimbursementService.getReimbursementsByUserIdAndStatus(

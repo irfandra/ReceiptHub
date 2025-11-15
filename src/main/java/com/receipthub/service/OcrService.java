@@ -41,10 +41,10 @@ public class OcrService {
     private String apiKey;
     
 private static final Pattern AMOUNT_PATTERN = Pattern.compile(
-    "(?:SUB\\s+TOTAL|SUBTOTAL|TOTAL|AMOUNT|GRAND\\s+TOTAL|BALANCE\\s+DUE|TOTAL\\s+DUE|PAID)" + // SUB TOTAL with mandatory space
-    "\\s*:?\\s*" +                                                      // Optional colon with spaces
-    "\\$?\\s*" +                                                        // Optional $ with spaces
-    // Capture Group 1: The Amount - handles numbers with optional spaces before decimal
+    "(?:SUB\\s+TOTAL|SUBTOTAL|TOTAL|AMOUNT|GRAND\\s+TOTAL|BALANCE\\s+DUE|TOTAL\\s+DUE|PAID)" +
+    "\\s*:?\\s*" +
+    "\\$?\\s*" +
+
     "((?:[0-9]{1,3}(?:,\\s?[0-9]{3})*|[0-9]+)\\.?\\s?[0-9]{2})",
     Pattern.CASE_INSENSITIVE
 );
@@ -53,15 +53,15 @@ private static final Pattern AMOUNT_PATTERN = Pattern.compile(
 
 private static final Pattern DATE_PATTERN = Pattern.compile(
     // 1. Matches: dd/mm/yyyy, mm/dd/yyyy, dd-mm-yyyy, dd.mm.yyyy
-    "(\\d{1,2}[/.-]\\d{1,2}[/.-]\\d{2,4})|" +  // <-- FIXED
+    "(\\d{1,2}[/.-]\\d{1,2}[/.-]\\d{2,4})|" +
     
     // 2. Matches: yyyy-mm-dd, yyyy/mm/dd, yyyy.mm.dd
-    "(\\d{4}[/.-]\\d{1,2}[/.-]\\d{1,2})|" +  // <-- FIXED
+    "(\\d{4}[/.-]\\d{1,2}[/.-]\\d{1,2})|" +
     
     // 3. Matches: Jan 01, 2025 or January 1st, 2025
     "(" + MONTH_REGEX + "[\\s,.]+\\d{1,2}(?:st|nd|rd|th)?[\\s,.]+\\d{2,4})|" +
     
-    // 4. Matches: 01 Jan 2025 or 1-Jan-2025 (This one was already correct)
+    // 4. Matches: 01 Jan 2025 or 1-Jan-2025
     "(\\d{1,2}[\\s,.-]+" + MONTH_REGEX + "[\\s,.-]+\\d{2,4})",
     
     Pattern.CASE_INSENSITIVE
@@ -70,18 +70,11 @@ private static final Pattern DATE_PATTERN = Pattern.compile(
     @CircuitBreaker(name = "ocrService", fallbackMethod = "ocrFallback")
     public OcrDataResponse extractReceiptData(String objectName) throws Exception {
         log.info("Extracting receipt data from MinIO object: {}", objectName);
-        
-        // Fetch image from MinIO cloud storage
         byte[] imageBytes = storageService.getFile(objectName);
-        
-        // Convert to base64
         String base64Image = Base64.getEncoder().encodeToString(imageBytes);
-        
-        // Call OCR.space API - let exceptions propagate to circuit breaker
         String extractedText = callOcrApi(base64Image);
         
         if (extractedText != null && !extractedText.isEmpty()) {
-            // Parse the extracted text
             return parseReceiptText(extractedText);
         } else {
             log.warn("No text extracted from OCR");
@@ -127,8 +120,7 @@ private static final Pattern DATE_PATTERN = Pattern.compile(
                         return (String) firstResult.get("ParsedText");
                     }
                 }
-                
-                // Check for errors
+
                 if (responseBody != null && responseBody.containsKey("ErrorMessage")) {
                     @SuppressWarnings("unchecked")
                     List<String> errors = (List<String>) responseBody.get("ErrorMessage");
@@ -147,16 +139,12 @@ private static final Pattern DATE_PATTERN = Pattern.compile(
 
     private OcrDataResponse parseReceiptText(String text) {
         OcrDataResponse response = new OcrDataResponse();
-        
-        // Extract merchant name (usually in first few lines)
         String merchantName = extractMerchantName(text);
         response.setMerchantName(merchantName);
-        
-        // Extract amount
+
         Double amount = extractAmount(text);
         response.setAmount(amount);
-        
-        // Extract transaction date from receipt
+
         LocalDateTime date = extractDate(text);
         response.setTransactionDate(date);
         
@@ -170,15 +158,13 @@ private static final Pattern DATE_PATTERN = Pattern.compile(
         
         for (String line : lines) {
             line = line.trim();
-            
-            // Skip empty lines, pure numbers, dates, and very short lines
+
             if (line.matches("^[0-9\\s]+$") ||
                     line.matches(".*\\d{2}[/-]\\d{2}[/-]\\d{2,4}.*") ||
                     line.length() < 3) {
                 continue;
             }
-            
-            // Look for common merchant indicators
+
             if (line.toLowerCase().contains("store") || 
                 line.toLowerCase().contains("mart") ||
                 line.toLowerCase().contains("shop") ||
@@ -189,8 +175,7 @@ private static final Pattern DATE_PATTERN = Pattern.compile(
                 return line;
             }
         }
-        
-        // If no merchant found, return first non-empty line
+
         for (String line : lines) {
             line = line.trim();
             if (line.length() > 3) {
@@ -216,12 +201,11 @@ private static final Pattern DATE_PATTERN = Pattern.compile(
                 if (amount > maxAmount) {
                     maxAmount = amount;
                 }
-            } catch (NumberFormatException e) {
-                // Continue searching
+            } catch (NumberFormatException ignored) {
+
             }
         }
-        
-        // Simple fallback - find the largest amount
+
         if (maxAmount == 0.0) {
             Pattern fallbackPattern = Pattern.compile("([0-9]+\\.\\s?[0-9]{2})");
             Matcher fallbackMatcher = fallbackPattern.matcher(text);
@@ -234,8 +218,8 @@ private static final Pattern DATE_PATTERN = Pattern.compile(
                     if (amount > maxAmount && amount < 10000) {
                         maxAmount = amount;
                     }
-                } catch (NumberFormatException e) {
-                    // Continue
+                } catch (NumberFormatException ignored) {
+
                 }
             }
         }
@@ -248,8 +232,7 @@ private static final Pattern DATE_PATTERN = Pattern.compile(
         
         if (matcher.find()) {
             String dateStr = matcher.group(0);
-            
-            // Try different date formats
+
             List<DateTimeFormatter> formatters = List.of(
                 DateTimeFormatter.ofPattern("dd/MM/yyyy"),
                 DateTimeFormatter.ofPattern("MM/dd/yyyy"),
@@ -270,12 +253,10 @@ private static final Pattern DATE_PATTERN = Pattern.compile(
                         java.time.LocalTime.now()
                     );
                 } catch (Exception e) {
-                    // Try next format
                 }
             }
         }
-        
-        // Default to current date if not found
+
         return LocalDateTime.now();
     }
     

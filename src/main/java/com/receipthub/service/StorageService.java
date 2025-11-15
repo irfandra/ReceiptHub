@@ -101,10 +101,9 @@ public class StorageService {
     
     public byte[] getFile(String objectNameOrPath) throws IOException {
         try {
-            // Extract just the filename if it's a full path (backward compatibility)
+
             String objectName = objectNameOrPath;
             if (objectNameOrPath.contains("/")) {
-                // Extract filename from path: "/uploads/receipt_123.jpg" -> "receipt_123.jpg"
                 objectName = Paths.get(objectNameOrPath).getFileName().toString();
                 log.info("Converted path '{}' to object name '{}'", objectNameOrPath, objectName);
             }
@@ -117,7 +116,6 @@ public class StorageService {
                             .build());
             return stream.readAllBytes();
         } catch (Exception e) {
-            // Fallback: Try to read from local file system for old receipts
             log.warn("MinIO download failed for '{}', attempting local file system fallback", objectNameOrPath);
             try {
                 Path localPath = Paths.get(objectNameOrPath);

@@ -22,24 +22,19 @@ public class ReceiptService {
     private final ReceiptRepository receiptRepository;
     private final OcrService ocrService;
     private final StorageService storageService;
-    
+
     /**
      * Upload receipt from Telegram bot (byte array).
      * Processes OCR synchronously to return merchant name and amount immediately.
      */
     public ReceiptUploadResponse uploadReceiptFromBytes(byte[] fileData, String fileName) throws IOException {
-        // Upload file to MinIO cloud storage
+
         String objectName = storageService.uploadFile(fileData, fileName);
-        
         Receipt receipt = new Receipt();
-        receipt.setImageUrl(objectName);  // Store object name (e.g., "abc-123.jpg")
+        receipt.setImageUrl(objectName);
         receipt.setOcrStatus(Receipt.OcrStatus.PENDING);
-        
         receipt = receiptRepository.save(receipt);
-        
-        // Process OCR synchronously for Telegram uploads to get the amount
         processOcrSync(receipt);
-        
         return new ReceiptUploadResponse(
             receipt.getId(),
             receipt.getImageUrl(),
@@ -81,7 +76,6 @@ public class ReceiptService {
         try {
             Receipt receipt = receiptRepository.findById(id).orElse(null);
             if (receipt != null) {
-                // Delete from database
                 receiptRepository.deleteById(id);
                 log.info("Receipt deleted: {}", id);
             }

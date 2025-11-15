@@ -60,7 +60,7 @@ public class DashboardController {
             Principal principal,
             Model model) {
         
-        // Spring Security ensures only ADMIN can access (configured in SecurityConfig)
+
         User user = userService.getUserByEmail(principal.getName())
                 .orElseThrow(() -> new RuntimeException("User not found"));
         
@@ -68,7 +68,7 @@ public class DashboardController {
     model.addAttribute("activeTab", tab);
     model.addAttribute("pageTitle", "employees".equalsIgnoreCase(tab) ? "Employee Management" : "Dashboard");
         
-        // If employees tab is active, prepare employees data and short-circuit stats table rendering via template
+
         if ("employees".equalsIgnoreCase(tab)) {
             Page<User> employeesPage;
             if (search != null && !search.trim().isEmpty()) {
@@ -83,15 +83,11 @@ public class DashboardController {
             model.addAttribute("totalItems", employeesPage.getTotalElements());
             model.addAttribute("pageSize", size);
             model.addAttribute("search", search);
-
-            // Still return dashboard; template will include the employees fragment instead of the default content
             return "main";
         }
 
-        // Get all reimbursements for stats and chart
+
         List<ReimbursementResponse> allReimbursements = reimbursementService.getAllReimbursements(0, Integer.MAX_VALUE).getContent();
-        
-        // Get paginated reimbursements based on status filter
         Page<ReimbursementResponse> reimbursementPage;
         if ("ALL".equals(status)) {
             reimbursementPage = reimbursementService.getAllReimbursements(page, size);
@@ -100,7 +96,7 @@ public class DashboardController {
                 ReimbursementRequest.RequestStatus requestStatus = ReimbursementRequest.RequestStatus.valueOf(status);
                 reimbursementPage = reimbursementService.getReimbursementsByStatus(requestStatus, page, size);
             } catch (IllegalArgumentException e) {
-                // Invalid status, default to ALL
+
                 reimbursementPage = reimbursementService.getAllReimbursements(page, size);
             }
         }
@@ -109,7 +105,7 @@ public class DashboardController {
         int totalPages = reimbursementPage.getTotalPages();
         long totalItems = reimbursementPage.getTotalElements();
         
-        // Calculate stats from all reimbursements
+
         long pendingCount = allReimbursements.stream()
                 .filter(r -> "PENDING".equals(r.getStatus()))
                 .count();
@@ -133,40 +129,35 @@ public class DashboardController {
             .filter(Objects::nonNull)
             .reduce(0.0, Double::sum);
         totalPendingAmount = Math.round(totalPendingAmount * 100.0) / 100.0;
-        
-        // Calculate monthly data for chart (only months with actual transactions)
         Map<String, Double> monthlyTotalRequested = new LinkedHashMap<>();
         Map<String, Double> monthlyApproved = new LinkedHashMap<>();
         Map<String, Double> monthlyRejected = new LinkedHashMap<>();
-        
         DateTimeFormatter monthFormatter = DateTimeFormatter.ofPattern("MMM yyyy");
-        
-        // Group reimbursements by month - only include months with data
         for (ReimbursementResponse r : allReimbursements) {
             if (r.getSubmittedAt() == null || r.getRequestedAmount() == null) {
-                continue; // Skip records with missing data
+                continue;
             }
             
             String monthKey = r.getSubmittedAt().format(monthFormatter);
             
-            // Total requested (all statuses)
+
             monthlyTotalRequested.put(monthKey, 
                 monthlyTotalRequested.getOrDefault(monthKey, 0.0) + r.getRequestedAmount());
             
-            // Approved
+
             if ("APPROVED".equals(r.getStatus())) {
                 monthlyApproved.put(monthKey, 
                     monthlyApproved.getOrDefault(monthKey, 0.0) + r.getRequestedAmount());
             }
             
-            // Rejected
+
             if ("REJECTED".equals(r.getStatus())) {
                 monthlyRejected.put(monthKey, 
                     monthlyRejected.getOrDefault(monthKey, 0.0) + r.getRequestedAmount());
             }
         }
         
-        // Ensure all month keys exist in all maps (with 0.0 if no data for that status)
+
         for (String monthKey : monthlyTotalRequested.keySet()) {
             monthlyApproved.putIfAbsent(monthKey, 0.0);
             monthlyRejected.putIfAbsent(monthKey, 0.0);
@@ -178,18 +169,18 @@ public class DashboardController {
         model.addAttribute("pendingCount", pendingCount);
         model.addAttribute("approvedCount", approvedCount);
         model.addAttribute("rejectedCount", rejectedCount);
-        //money
+
         model.addAttribute("totalAmount", totalAmount);
         model.addAttribute("totalPendingAmount", totalPendingAmount);
         model.addAttribute("totalAmountRequested",totalAmount);
         
-        // Pagination attributes
+
         model.addAttribute("currentPage", page);
         model.addAttribute("pageSize", size);
         model.addAttribute("totalPages", totalPages);
         model.addAttribute("totalItems", totalItems);
         
-        // Chart data
+
         model.addAttribute("chartMonths", new ArrayList<>(monthlyTotalRequested.keySet()));
         model.addAttribute("chartTotalRequested", new ArrayList<>(monthlyTotalRequested.values()));
         model.addAttribute("chartApproved", new ArrayList<>(monthlyApproved.values()));
@@ -198,7 +189,7 @@ public class DashboardController {
         return "main";
     }
     
-    // Employee management
+
     @PostMapping("/dashboard/employees/add")
     public String addEmployee(
             @RequestParam String name,
@@ -207,8 +198,7 @@ public class DashboardController {
             @RequestParam String role,
             Principal principal,
             Model model) {
-        
-        // Validate phone number format if provided
+
         if (phoneNumber != null && !phoneNumber.trim().isEmpty() && !phoneNumber.trim().startsWith("+")) {
             model.addAttribute("error", "Phone number must start with + (country code)");
             return "redirect:/dashboard?tab=employees&error=invalid_phone";
@@ -219,7 +209,7 @@ public class DashboardController {
         newUser.setEmail(email);
         newUser.setPhoneNumber(phoneNumber != null && !phoneNumber.trim().isEmpty() ? phoneNumber.trim() : null);
         newUser.setRole(User.UserRole.valueOf(role));
-        // Set default password "password" for employees added by admin
+
         newUser.setPassword(passwordEncoder.encode("password"));
         userService.createUser(newUser);
         return "redirect:/dashboard?tab=employees";
@@ -235,7 +225,7 @@ public class DashboardController {
             Principal principal,
             Model model) {
         
-        // Validate phone number format if provided
+
         if (phoneNumber != null && !phoneNumber.trim().isEmpty() && !phoneNumber.trim().startsWith("+")) {
             model.addAttribute("error", "Phone number must start with + (country code)");
             return "redirect:/dashboard?tab=employees&error=invalid_phone";
@@ -256,7 +246,7 @@ public class DashboardController {
         return "redirect:/dashboard?tab=employees";
     }
     
-    // Reimbursement management
+
     @PostMapping("/dashboard/reimbursements/approve")
     public String approveReimbursement(
             @RequestParam Long reimbursementId,

@@ -51,12 +51,9 @@ public class TelegramBotService extends TelegramLongPollingBot {
         this.receiptService = receiptService;
         this.reimbursementService = reimbursementService;
     }
-    
-    // Store pending receipts waiting for description
-    // Map: chatId -> PendingReceipt
+
     private final Map<Long, PendingReceipt> pendingReceipts = new HashMap<>();
-    
-    // Inner class to track pending receipt data
+
     private static class PendingReceipt {
         Long receiptId;
         Double amount;
@@ -78,29 +75,25 @@ public class TelegramBotService extends TelegramLongPollingBot {
     public void onUpdateReceived(Update update) {
         if (update.hasMessage()) {
             Long chatId = update.getMessage().getChatId();
-            
-            // Check if user is already registered with this chat ID
             Optional<User> userOpt = userService.getUserByTelegramChatId(chatId);
             
             if (userOpt.isEmpty()) {
-                // User not linked yet - handle registration
                 handleUnregisteredUser(update, chatId);
                 return;
             }
             
             User user = userOpt.get();
             
-            // Validate file uploads for registered users
+
             if (update.getMessage().hasPhoto()) {
-                // Check for media group (multiple photos uploaded together)
                 if (update.getMessage().getMediaGroupId() != null) {
                     sendMessage(chatId, 
                         """
-                        ❌ Multiple photos detected!
+                        Multiple photos detected!
                         
-                        ⚠️ Please send ONLY ONE receipt photo at a time.
+                        Please send ONLY ONE receipt photo at a time.
                         
-                        📸 Send your receipt photos one by one for processing.""");
+                        Send your receipt photos one by one for processing.""");
                     return;
                 }
                 handlePhotoMessage(update, user);
@@ -109,21 +102,21 @@ public class TelegramBotService extends TelegramLongPollingBot {
             } else if (update.getMessage().hasDocument() || update.getMessage().hasVideo() || 
                        update.getMessage().hasAudio() || update.getMessage().hasVoice() || 
                        update.getMessage().hasSticker() || update.getMessage().hasVideoNote()) {
-                // Reject non-photo file types
+
                 sendMessage(chatId, 
                     """
-                    ❌ Invalid file type.
+                    Invalid file type.
                     
-                    📸 Please send a PHOTO of your receipt only.
+                    Please send a PHOTO of your receipt only.
                     
-                    ⚠️ Documents, videos, and other file types are not supported.""");
+                    Documents, videos, and other file types are not supported.""");
             } else {
-                // Unknown message type
+
                 sendMessage(chatId, 
                     """
-                    ❌ Unsupported message type.
+                    Unsupported message type.
                     
-                    📸 Please send a photo of your receipt or use /start for help.""");
+                    Please send a photo of your receipt or use /start for help.""");
             }
         }
     }
@@ -154,51 +147,47 @@ public class TelegramBotService extends TelegramLongPollingBot {
         Contact contact = update.getMessage().getContact();
         String phoneNumber = normalizePhoneNumber(contact.getPhoneNumber());
         
-        // Verify this is the user's own phone number
+
         if (!contact.getUserId().equals(update.getMessage().getFrom().getId())) {
             sendMessage(chatId, 
                 """
-                ❌ Please share your own contact, not someone else's.
+                Please share your own contact, not someone else's.
                 
                 Click the button below to share your phone number.""");
             return;
         }
-        
-        // Look up user by phone number
+
         Optional<User> userByPhone = userService.getUserByPhoneNumber(phoneNumber);
         
         if (userByPhone.isPresent()) {
             User user = userByPhone.get();
-            
-            // Check if this user already has a different chat ID linked
+
             if (user.getTelegramChatId() != null && !user.getTelegramChatId().equals(chatId)) {
                 sendMessage(chatId, 
                     """
-                    ❌ This phone number is already linked to another Telegram account.
+                    This phone number is already linked to another Telegram account.
                     
                     Please contact your administrator if you need help.""");
                 return;
             }
-            
-            // Link this chat ID to the user
+
             userService.linkTelegramChatId(user.getId(), chatId);
-            
             sendMessageWithKeyboardRemove(chatId, 
                 """
-                ✅ Registration successful!
+                Registration successful!
                 
-                👤 Welcome, %s!
-                📧 Email: %s
-                📱 Phone: %s
+                Welcome, %s!
+                Email: %s
+                Phone: %s
                 
-                📸 You can now send receipt photos for reimbursement requests.
+                You can now send receipt photos for reimbursement requests.
                 
                 Use /start anytime for help."""
                 .formatted(user.getName(), user.getEmail(), user.getPhoneNumber()));
         } else {
             sendMessage(chatId, 
                 """
-                ❌ Phone number %s not found in our system.
+                Phone number %s not found in our system.
                 
                 Please make sure you're registered with the company.
                 Contact your administrator for assistance."""
@@ -211,7 +200,7 @@ public class TelegramBotService extends TelegramLongPollingBot {
         message.setChatId(chatId.toString());
         message.setText(text);
         
-        // Create keyboard with contact sharing button
+
         ReplyKeyboardMarkup keyboardMarkup = new ReplyKeyboardMarkup();
         List<KeyboardRow> keyboard = new ArrayList<>();
         
@@ -262,24 +251,23 @@ public class TelegramBotService extends TelegramLongPollingBot {
                 .orElse(null);
             
             if (photo != null) {
-                // Download the photo
+
                 org.telegram.telegrambots.meta.api.objects.File file = 
                     execute(new org.telegram.telegrambots.meta.api.methods.GetFile(photo.getFileId()));
                 
                 downloadedFile = downloadFile(file);
                 byte[] fileData = Files.readAllBytes(downloadedFile.toPath());
                 
-                // Upload receipt and extract OCR data (merchant + amount only)
+
                 ReceiptUploadResponse response = receiptService.uploadReceiptFromBytes(
                     fileData, 
                     "receipt_" + System.currentTimeMillis() + ".jpg"
                 );
                 
-                // Check if OCR was successful
+
                 if (response.getMerchantName() == null || response.getMerchantName().equals("OCR Extraction Failed") 
                     || response.getAmount() == null || response.getAmount() == 0.0) {
-                    
-                    // OCR failed - delete the uploaded file
+
                     receiptService.deleteReceipt(response.getReceiptId());
                     
                     sendMessage(user.getTelegramChatId(), 
@@ -299,16 +287,14 @@ public class TelegramBotService extends TelegramLongPollingBot {
                         Send another receipt photo when ready!""");
                     return;
                 }
-                
-                // Store the pending receipt data
+
                 PendingReceipt pendingReceipt = new PendingReceipt(
                     response.getReceiptId(),
                     response.getAmount(),
                     response.getMerchantName()
                 );
                 pendingReceipts.put(user.getTelegramChatId(), pendingReceipt);
-                
-                // Ask user for description
+
                 sendMessage(user.getTelegramChatId(), 
                     """
                     Receipt uploaded successfully!
