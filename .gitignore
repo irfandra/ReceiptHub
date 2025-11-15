@@ -40,3 +40,4 @@ mysql-data/
 
 ### VS Code ###
 .vscode/
+.env
